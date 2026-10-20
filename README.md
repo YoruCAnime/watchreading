@@ -32,26 +32,6 @@ It's **free**, needs **no coding**, and takes about **20 minutes**, once. You on
 | A computer browser with the free **Tampermonkey** extension | updates the card **instantly** whenever you change your list |
 | A free **GitHub** account *(optional, recommended)* | updates the card every 30 minutes, even when your computer is off or you use the AniList phone app |
 
-## How it works, in one picture
-
-```
-                    your AniList list
-                   │                 │
-   instantly,      ▼                 ▼   every 30 minutes,
-   from your       Tampermonkey      GitHub   even when
-   browser         │                 │        your PC is off
-                   └────────┬────────┘
-                            ▼
-                 your card on Cloudflare
-                            │
-                            ▼
-                    your AniList bio
-```
-
-**Why can't the card just read AniList by itself?** AniList blocks Cloudflare's servers.
-So your browser and GitHub read your list and *bring* it to your card.
-[More details at the bottom.](#how-it-works-the-details)
-
 ---
 
 ## Step 1: Make your card on Cloudflare (about 10 minutes)
