@@ -35,15 +35,17 @@ It's **free**, needs **no coding**, and takes about **20 minutes**, once. You on
 ## How it works, in one picture
 
 ```
-            your AniList list
-               │           │
-   instantly   │           │   every 30 minutes
-   (your       ▼           ▼   (GitHub, works even
-   browser)  Tampermonkey   GitHub        when your PC is off)
-               │           │
-               └─────┬─────┘
-                     ▼
-        your card on Cloudflare  ──►  shown in your AniList bio
+                    your AniList list
+                   │                 │
+   instantly,      ▼                 ▼   every 30 minutes,
+   from your       Tampermonkey      GitHub   even when
+   browser         │                 │        your PC is off
+                   └────────┬────────┘
+                            ▼
+                 your card on Cloudflare
+                            │
+                            ▼
+                    your AniList bio
 ```
 
 **Why can't the card just read AniList by itself?** AniList blocks Cloudflare's servers.
