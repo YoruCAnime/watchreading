@@ -1,0 +1,47 @@
+# Keeps your card up to date even when your PC is off (and picks up changes you make on your phone).
+# Every 30 minutes it reads your AniList list and sends it to your card.
+# It needs three secrets in YOUR copy of this project (Settings > Secrets and variables > Actions):
+#   ANILIST_USER   your AniList user name
+#   CARD_URL       your card's address, e.g. https://watchreading.yourname.workers.dev
+#   PUSH_KEY       the same secret key you saved in Cloudflare
+name: watchreading sync
+
+on:
+  schedule:
+    - cron: "7,37 * * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  actions: write          # only for the keep-alive step at the end
+
+concurrency:
+  group: watchreading-sync
+  cancel-in-progress: false
+
+jobs:
+  sync:
+    # the guide's own repository has no card, so the job only runs in people's own copies
+    if: ${{ github.repository != 'YoruCAnime/watchreading' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Send the list to the card
+        env:
+          ANILIST_USER: ${{ secrets.ANILIST_USER }}
+          CARD_URL: ${{ secrets.CARD_URL }}
+          PUSH_KEY: ${{ secrets.PUSH_KEY }}
+        run: node sync/sync.mjs
+
+      # GitHub pauses timed jobs in repositories with no activity for 60 days.
+      # Once a day this tells GitHub the job is still wanted, so it never stops by itself.
+      - name: Keep the schedule alive
+        if: github.event_name == 'schedule'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          if [ "$(date -u +%H)" = "03" ] && [ "$(date -u +%M)" -lt 30 ]; then
+            gh api -X PUT "repos/${{ github.repository }}/actions/workflows/watchreading-sync.yml/enable" && echo "kept alive" || true
+          fi

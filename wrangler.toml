@@ -1,0 +1,22 @@
+# Only needed if you prefer Cloudflare's command-line tool (wrangler) over the website steps in README.md.
+#   npx wrangler login
+#   npx wrangler d1 create watchreading          -> put the database_id it prints below
+#   npx wrangler secret put PUSH_KEY             -> paste your key
+#   npx wrangler deploy
+name = "watchreading"
+main = "worker.js"
+compatibility_date = "2025-09-01"
+workers_dev = true
+
+[[d1_databases]]
+binding = "DB"
+database_name = "watchreading"
+database_id = "PUT-YOUR-DATABASE-ID-HERE"
+
+# Optional looks (the defaults are fine):
+# [vars]
+# ROWS = "5"
+# THEME = "dark"
+# ACCENT = "profile"
+# HEADING = "Currently Watching / Reading"
+# TIMEZONE = "Europe/London"
