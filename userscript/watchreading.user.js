@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         watchreading - AniList bio card sync
 // @namespace    watchreading
-// @version      1.0.0
+// @version      1.1.0
 // @description  Sends your Watching / Rewatching anime and Reading / Rereading manga to your watchreading card a few seconds after you update AniList.
 // @match        https://anilist.co/*
 // @grant        GM_xmlhttpRequest
@@ -25,10 +25,17 @@
 //  - it also looks every minute (catches changes made on another device) and sends only when
 //    something changed, plus once every 30 minutes anyway;
 //  - covers the card does not have yet are sent once each (the Worker cannot download them itself).
+//
+// When AniList switches its API off (it did for about a day in October 2026), the list is read through
+// the AniList page itself instead (the address the website uses to show lists): right after you save
+// something, otherwise at most every 10 minutes. The API is tried again every 10 minutes, and used again
+// as soon as it answers. Rate limits ("slow down") are never worked around.
 (function () {
   'use strict';
   const CHECK_EVERY = 60 * 1000;
   const RESEND_AFTER = 30 * 60 * 1000;
+  const API_PAUSE = 10 * 60 * 1000;    // after the API refuses: leave it alone this long, then try it first again
+  const SITE_GAP = 10 * 60 * 1000;     // while the API is off: read through the website at most this often (saves at once)
 
   // anime Watching / Rewatching + manga Reading / Rereading (never Planning, Paused, Dropped, Completed)
   // + your profile colour (the card's accent colour follows it)
@@ -43,11 +50,56 @@
   const gm = o => new Promise((ok, bad) => GM_xmlhttpRequest({ timeout: 30000, ...o, onload: ok, onerror: bad, ontimeout: bad }));
   const parse = r => (typeof r.response === 'string' ? JSON.parse(r.response) : r.response);
 
-  async function readList(user) {
-    const r = await gm({ method: 'POST', url: 'https://graphql.anilist.co', headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
-      data: JSON.stringify({ query: Q, variables: { u: user } }), responseType: 'json' });
-    const j = parse(r);
-    if (r.status !== 200 || !j || j.errors) throw new Error('AniList ' + r.status + (j && j.errors ? ': ' + j.errors.map(e => e.message).join('; ') : ''));
+  const errText = j => (j && j.errors ? ': ' + j.errors.map(e => e.message).join('; ') : '');
+
+  // AniList's API. Returns null when the API is switched off or down (then the website is asked instead).
+  async function askApi(body) {
+    let r;
+    try {
+      r = await gm({ method: 'POST', url: 'https://graphql.anilist.co', headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+        data: body, responseType: 'json' });
+    } catch (e) { return null; }                                  // no answer at all
+    let j = null;
+    try { j = parse(r); } catch (e) {}
+    if (r.status === 200 && j && j.data && !j.errors) return j;
+    if (r.status === 403 || r.status === 0 || r.status >= 500) return null;   // "temporarily disabled" / down
+    throw new Error('AniList ' + r.status + errText(j));         // e.g. 404 no such user, 429 slow down
+  }
+
+  // The website's own address (anilist.co/graphql). It only answers requests from an AniList page, so the
+  // small script in the page (below) sends the question with the page's security code and passes the answer back.
+  let asks = 0;
+  function askSite(body) {
+    return new Promise((ok, bad) => {
+      const id = 'q' + (++asks) + '-' + Date.now();
+      const done = e => {
+        let d; try { d = JSON.parse(e.detail); } catch (x) { return; }
+        if (!d || d.id !== id) return;
+        window.removeEventListener('watchreading-site-answer', done); clearTimeout(t);
+        let j = null; try { j = JSON.parse(d.text); } catch (x) {}
+        if (d.status === 200 && j && j.data && !j.errors) ok(j);
+        else bad(new Error('AniList website ' + d.status + errText(j)));
+      };
+      const t = setTimeout(() => { window.removeEventListener('watchreading-site-answer', done); bad(new Error('the AniList page did not answer')); }, 30000);
+      window.addEventListener('watchreading-site-answer', done);
+      window.dispatchEvent(new CustomEvent('watchreading-site-ask', { detail: JSON.stringify({ id, body }) }));
+    });
+  }
+
+  // null = not read this time (the API is off and the website was asked less than SITE_GAP ago)
+  async function readList(user, urgent) {
+    const body = JSON.stringify({ query: Q, variables: { u: user } });
+    let j = null;
+    if (Date.now() >= GM_getValue('apiOff', 0)) {
+      j = await askApi(body);
+      if (j) GM_setValue('apiOff', 0);
+      else { GM_setValue('apiOff', Date.now() + API_PAUSE); console.debug('[watchreading] the AniList API is off, reading through the website'); }
+    }
+    if (!j) {
+      if (!urgent && Date.now() - GM_getValue('siteRead', 0) < SITE_GAP) return null;
+      GM_setValue('siteRead', Date.now());
+      j = await askSite(body);
+    }
     const seen = new Set(), out = [];
     for (const col of [j.data.anime, j.data.manga]) for (const e of (col ? col.lists : []).flatMap(l => l.entries)) {
       const m = e.media;
@@ -79,7 +131,9 @@
     busy = true; GM_setValue('lock', Date.now());
     const auth = { Authorization: 'Bearer ' + c.key };
     try {
-      const { list, color } = await readList(c.user);
+      const got = await readList(c.user, force || urgent);
+      if (!got) return null;
+      const { list, color } = got;
       const sig = JSON.stringify([c.worker, color, list.slice(0, 30).map(i => [i.id, i.progress, i.updatedAt, i.episodes, i.listStatus, i.next && i.next.at])]);
       if (!force && sig === GM_getValue('sig', '') && Date.now() - GM_getValue('sent', 0) < RESEND_AFTER) return 'unchanged';
       const r = await gm({ method: 'POST', url: c.worker + '/update', headers: { 'Content-Type': 'application/json', ...auth },
@@ -156,6 +210,18 @@
       try { if (isSave(body)) this.addEventListener('loadend', tell); } catch (e) {}
       return send.apply(this, arguments);
     };
+    // while AniList's API is off: ask the website's own address, with the page's security code (al_token)
+    window.addEventListener('watchreading-site-ask', e => {
+      let d; try { d = JSON.parse(e.detail); } catch (x) { return; }
+      const answer = (status, text) => window.dispatchEvent(new CustomEvent('watchreading-site-answer', { detail: JSON.stringify({ id: d.id, status, text }) }));
+      let tok = window.al_token || '';
+      if (!tok) for (const s of document.scripts) { const m = !s.src && s.textContent.match(/al_token\\s*=\\s*"([^"]+)"/); if (m) { tok = m[1]; break; } }
+      try {
+        f.call(window, '/graphql', { method: 'POST', credentials: 'same-origin', body: d.body,
+          headers: { 'Content-Type': 'application/json', Accept: 'application/json', 'x-csrf-token': tok } })
+          .then(r => r.text().then(t => answer(r.status, t)), err => answer(0, String(err)));
+      } catch (x) { answer(0, String(x)); }
+    });
   })();`;
   (function inject(tries) {                              // the page may not exist yet at document-start
     const root = document.head || document.documentElement;

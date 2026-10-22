@@ -21,6 +21,12 @@ It's **free**, needs **no coding**, and takes about **20 minutes**, once. You on
 > Everything runs on **your own free accounts**. You make your own card, with your own key.
 > Nothing goes through anyone else's account, and nobody else can change your card.
 
+> [!TIP]
+> **Keeps updating even when AniList's API is down.**
+> AniList sometimes switches off its API (the data feed that apps use), as it did for about a day in October 2026.
+> While it's off, the Tampermonkey script reads your list through the AniList page itself, so your card still updates whenever you save something on AniList.
+> When the API comes back, everything goes back to normal by itself. → [When AniList's API is down](#when-anilists-api-is-down)
+
 ---
 
 ## What you need
@@ -181,6 +187,33 @@ To combine options, join them with `&`, for example:
 
 ---
 
+## When AniList's API is down
+
+> [!IMPORTANT]
+> **Your card keeps updating, from your computer's browser.** You don't need to do anything, as long as you have the Tampermonkey script **version 1.1.0 or newer**.
+
+AniList's **API** (the data feed that apps, bots and this card read) is sometimes switched off while the **website** stays up.
+When that happens, every app gets the answer *"The AniList API has been temporarily disabled"*.
+
+**The Tampermonkey script then reads your list through the AniList page itself.** That's the same address the website uses to show your list.
+It sends the list to your card as usual.
+
+- It does this **right after you save something** (the +1 button, the list editor), and otherwise **at most once every 10 minutes**, to keep the load low while AniList is having trouble.
+- It tries the API again every 10 minutes and **switches back by itself** as soon as the API answers.
+- If AniList asks it to slow down, it waits. It never works around a rate limit.
+- It only works while an AniList page is open in your browser. Changes you make on your phone reach the card the next time you open AniList on your computer, or when the API is back.
+
+**The GitHub job can't do this.** The website only answers its own pages, not GitHub's computers.
+So while the API is off, the job just says so (a yellow warning, not an error) and **catches up by itself** once the API is back.
+
+**Updating an older script (1.0.0):** click the install link in step 2.3 again, then **Update** (or **Reinstall**) in Tampermonkey.
+Your settings are kept. To check your version: Tampermonkey icon → **Dashboard**, version column.
+
+*Good to know:* this is the website's own address, not AniList's official API. AniList's [API terms](https://docs.anilist.co/guide/terms-of-use) don't forbid it, but it isn't an official route either.
+AniList could change it at any time. If it ever stops working, the card simply waits for the API, as before.
+
+---
+
 ## Something's not working?
 
 **First, open your check page** (your card's address, without `/card.svg`). Any red ✘ line says what's missing.
@@ -190,6 +223,7 @@ To combine options, join them with `&`, for example:
 | The card says **"Waiting for the first update from AniList"** | Nothing has been sent yet. Open AniList with Tampermonkey turned on, or run the GitHub job (step 4.5). |
 | **"wrong key"** (in Tampermonkey's message or in the GitHub job) | The key has to be exactly the same in Cloudflare, Tampermonkey and GitHub, with no extra spaces. |
 | No setup boxes on AniList | Check that Tampermonkey is on, **Allow User Scripts** is on (step 2.2) and the script is turned on in Tampermonkey. Then click the Tampermonkey icon → **watchreading: settings**. |
+| The card stopped updating, and the GitHub job says **"AniList's API is switched off"** | AniList has switched its API off for a while. Make sure your Tampermonkey script is **1.1.0 or newer** ([When AniList's API is down](#when-anilists-api-is-down)): it then updates the card whenever you save something on AniList. The job catches up by itself once the API is back. |
 | The GitHub job has a **red ✘** | Click it and open **Send the list to the card**. The message says what's wrong: a missing secret, the wrong key, or the wrong AniList name. |
 | A cover shows as an empty box | It arrives with the next update (each cover is sent once). |
 | The bio still shows the old card | Reload the AniList page. The card itself is always up to date. |
@@ -215,6 +249,7 @@ For the curious. You don't need this part to set it up.
   - It only sends when something changed, plus once every 30 minutes anyway.
   - If you have several AniList tabs open, they take turns, so your list isn't sent twice.
   - It also sends your **profile colour** (and notices when you change it) and your **time zone** (for the TODAY badge).
+  - If AniList's API is switched off, it reads your list through the AniList page itself (the website's own address, with the page's security code) until the API is back. See [When AniList's API is down](#when-anilists-api-is-down).
   - Your settings are kept by Tampermonkey.
 - **The GitHub job** ([`.github/workflows/watchreading-sync.yml`](.github/workflows/watchreading-sync.yml) running [`sync/sync.mjs`](sync/sync.mjs)) does the same reading and sending every 30 minutes on GitHub's computers.
   GitHub pauses timed jobs in projects that see no activity for 60 days, so the job tells GitHub once a day that it's still wanted.

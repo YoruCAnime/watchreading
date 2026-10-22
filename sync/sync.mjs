@@ -33,7 +33,12 @@ async function main() {
     body: JSON.stringify({ query: Q, variables: { u: ANILIST_USER.trim() } }),
   });
   const j = await r.json().catch(() => null);
-  if (!r.ok || !j || j.errors) fail(`AniList answered ${r.status}: ${j && j.errors ? j.errors.map(e => e.message).join('; ') : ''} (is ANILIST_USER right?)`);
+  if (!r.ok || !j || j.errors) {
+    const said = j && j.errors ? j.errors.map(e => e.message).join('; ') : '';
+    if (r.status === 403 || r.status >= 500) fail(`AniList's API is switched off or down right now (${r.status}${said ? ': ' + said : ''}). ` +
+      'Nothing to fix: the Tampermonkey script keeps your card updated when you save something on AniList, and this job catches up by itself once the API is back.');
+    fail(`AniList answered ${r.status}: ${said} (is ANILIST_USER right?)`);
+  }
 
   const seen = new Set(), list = [];
   for (const col of [j.data.anime, j.data.manga]) for (const e of (col ? col.lists : []).flatMap(l => l.entries)) {
