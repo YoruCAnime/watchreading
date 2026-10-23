@@ -8,11 +8,11 @@ Mark an episode or a chapter on AniList, and a few seconds later your bio shows 
 
 What the card shows:
 
-- your **5 latest** anime (Watching / Rewatching) and manga (Reading / Rereading), newest first.
+- your **5 latest** anime (Watching / Rewatching) and manga (Reading / Rereading), the last one you watched or read first.
   Planning, Paused, Dropped and Completed are never shown;
 - the episode or chapter you're on, with a progress bar;
 - a **countdown** to the next episode;
-- a **TODAY** badge on what you watched or read today;
+- a **TODAY** badge on what you watched or read today. Changing only a score or notes doesn't count;
 - **+3** on a cover when 3 aired episodes are still unwatched;
 - all of it in **your AniList profile colour**. Change the colour on AniList and the card follows.
 
@@ -23,6 +23,11 @@ It's **free**, needs **no coding**, and takes about **20 minutes**, once. You on
 
 > [!TIP]
 > **Keeps updating even when AniList's API is down.** [How?](#when-anilists-api-is-down)
+
+> [!IMPORTANT]
+> **Set up before 23 Oct 2026? Update once.** Fixes re-rated shows showing as "watched today", and keeps the card updating when AniList's API is down.
+> 1. Click the [install link](../../raw/main/userscript/watchreading.user.js) → **Update** in Tampermonkey.
+> 2. Using the GitHub job? Copy the [new sync.mjs](../../raw/main/sync/sync.mjs), then in your copy open `sync/sync.mjs` → ✏️ → paste over everything → **Commit changes**.
 
 ---
 
@@ -230,6 +235,7 @@ For the curious. You don't need this part to set it up.
   - It only sends when something changed, plus once every 30 minutes anyway.
   - If you have several AniList tabs open, they take turns, so your list isn't sent twice.
   - It also sends your **profile colour** (and notices when you change it) and your **time zone** (for the TODAY badge).
+  - "Today" and the order come from your newest **list activity** for each show (made only when you watch, read or change a status). AniList's own "last updated" time also changes when you only edit a score, so it isn't used.
   - If AniList's API is off, it reads your list through the AniList website instead (its own address, not the official API), right after a save or at most every 10 minutes, until the API is back.
   - Your settings are kept by Tampermonkey.
 - **The GitHub job** ([`.github/workflows/watchreading-sync.yml`](.github/workflows/watchreading-sync.yml) running [`sync/sync.mjs`](sync/sync.mjs)) does the same reading and sending every 30 minutes on GitHub's computers.

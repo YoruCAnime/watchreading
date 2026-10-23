@@ -23,7 +23,7 @@ async function main() {
   const Q = `query($u:String){
     anime:MediaListCollection(userName:$u,type:ANIME,status_in:[CURRENT,REPEATING],sort:UPDATED_TIME_DESC){lists{entries{...E}}}
     manga:MediaListCollection(userName:$u,type:MANGA,status_in:[CURRENT,REPEATING],sort:UPDATED_TIME_DESC){lists{entries{...E}}}
-    user:User(name:$u){options{profileColor}}}
+    user:User(name:$u){id options{profileColor}}}
   fragment E on MediaList{status progress updatedAt media{id type siteUrl status episodes chapters title{english romaji}
     coverImage{large} nextAiringEpisode{episode airingAt}}}`;
 
@@ -48,6 +48,26 @@ async function main() {
     list.push({ id: m.id, type: m.type, title: m.title.english || m.title.romaji, coverUrl: m.coverImage.large, url: m.siteUrl,
       progress: e.progress || 0, episodes: m.episodes, chapters: m.chapters, listStatus: e.status, mediaStatus: m.status, updatedAt: e.updatedAt,
       next: m.nextAiringEpisode ? { episode: m.nextAiringEpisode.episode, at: m.nextAiringEpisode.airingAt } : null });
+  }
+
+  // updatedAt = when you last watched / read the show: its newest list activity (AniList makes one only when
+  // you watch / read or change a status). AniList's own updatedAt also changes when you only edit a score or
+  // notes, which made re-rated shows say "watched today". A show with no activity among the newest 50 was last
+  // watched before the oldest of them. No activities at all (switched off in AniList's settings): times stay.
+  if (j.data.user && j.data.user.id) {
+    const a = await fetch('https://graphql.anilist.co', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Accept: 'application/json', 'User-Agent': UA },
+      body: JSON.stringify({ query: `query($id:Int){acts:Page(perPage:50){activities(userId:$id,type:MEDIA_LIST,sort:ID_DESC){...on ListActivity{createdAt media{id}}}}}`,
+        variables: { id: j.data.user.id } }),
+    }).then(x => x.json()).catch(() => null);
+    const acts = ((a && a.data && a.data.acts && a.data.acts.activities) || []).filter(x => x && x.media && x.createdAt);
+    if (acts.length) {
+      const at = {};
+      for (const x of acts) if (!(x.media.id in at)) at[x.media.id] = x.createdAt;
+      const oldest = Math.min(...acts.map(x => x.createdAt));
+      for (const it of list) it.updatedAt = at[it.id] != null ? at[it.id] : Math.min(it.updatedAt, oldest - 1);
+    }
   }
   list.sort((a, b) => b.updatedAt - a.updatedAt);
   const profileColor = j.data.user && j.data.user.options ? j.data.user.options.profileColor : null;

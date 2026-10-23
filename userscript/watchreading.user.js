@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         watchreading - AniList bio card sync
 // @namespace    watchreading
-// @version      1.1.0
+// @version      1.2.0
 // @description  Sends your Watching / Rewatching anime and Reading / Rereading manga to your watchreading card a few seconds after you update AniList.
 // @match        https://anilist.co/*
 // @grant        GM_xmlhttpRequest
@@ -30,6 +30,9 @@
 // the AniList page itself instead (the address the website uses to show lists): right after you save
 // something, otherwise at most every 10 minutes. The API is tried again every 10 minutes, and used again
 // as soon as it answers. Rate limits ("slow down") are never worked around.
+//
+// 1.2.0: "watched / read today" and the order follow when you last watched or read each show (your newest
+// list activity for it). Changing only a score or notes no longer marks a show as watched today.
 (function () {
   'use strict';
   const CHECK_EVERY = 60 * 1000;
@@ -39,10 +42,13 @@
 
   // anime Watching / Rewatching + manga Reading / Rereading (never Planning, Paused, Dropped, Completed)
   // + your profile colour (the card's accent colour follows it)
-  const Q = `query($u:String){
+  // + your 50 newest list activities (AniList makes one only when you watch / read or change a status;
+  //   they need your user number, which the first read finds and Tampermonkey keeps)
+  const ACTS = id => `acts:Page(perPage:50){activities(userId:${+id},type:MEDIA_LIST,sort:ID_DESC){...on ListActivity{createdAt media{id}}}}`;
+  const Q = id => `query($u:String){
     anime:MediaListCollection(userName:$u,type:ANIME,status_in:[CURRENT,REPEATING],sort:UPDATED_TIME_DESC){lists{entries{...E}}}
     manga:MediaListCollection(userName:$u,type:MANGA,status_in:[CURRENT,REPEATING],sort:UPDATED_TIME_DESC){lists{entries{...E}}}
-    user:User(name:$u){options{profileColor}}}
+    user:User(name:$u){id options{profileColor}}${id ? '\n    ' + ACTS(id) : ''}}
   fragment E on MediaList{status progress updatedAt media{id type siteUrl status episodes chapters title{english romaji}
     coverImage{large} nextAiringEpisode{episode airingAt}}}`;
 
@@ -86,9 +92,9 @@
     });
   }
 
-  // null = not read this time (the API is off and the website was asked less than SITE_GAP ago)
-  async function readList(user, urgent) {
-    const body = JSON.stringify({ query: Q, variables: { u: user } });
+  // AniList's answer through the API, or through the website while the API is off.
+  // null = not asked this time (the API is off and the website was asked less than SITE_GAP ago)
+  async function ask(body, urgent) {
     let j = null;
     if (Date.now() >= GM_getValue('apiOff', 0)) {
       j = await askApi(body);
@@ -100,6 +106,20 @@
       GM_setValue('siteRead', Date.now());
       j = await askSite(body);
     }
+    return j;
+  }
+
+  // null = not read this time
+  async function readList(user, urgent) {
+    const uidKey = 'uid:' + user.toLowerCase();
+    let uid = GM_getValue(uidKey, 0);
+    const j = await ask(JSON.stringify({ query: Q(uid), variables: { u: user } }), urgent);
+    if (!j) return null;
+    let acts = j.data.acts && j.data.acts.activities;
+    if (j.data.user && j.data.user.id && j.data.user.id !== uid) {   // first read (or a new name): remember the number,
+      uid = j.data.user.id; GM_setValue(uidKey, uid);              // then fetch the activities once more right away
+      try { const a = await ask(JSON.stringify({ query: `query{${ACTS(uid)}}` }), true); acts = a && a.data.acts && a.data.acts.activities; } catch (e) {}
+    }
     const seen = new Set(), out = [];
     for (const col of [j.data.anime, j.data.manga]) for (const e of (col ? col.lists : []).flatMap(l => l.entries)) {
       const m = e.media;
@@ -109,8 +129,22 @@
         progress: e.progress || 0, episodes: m.episodes, chapters: m.chapters, listStatus: e.status, mediaStatus: m.status, updatedAt: e.updatedAt,
         next: m.nextAiringEpisode ? { episode: m.nextAiringEpisode.episode, at: m.nextAiringEpisode.airingAt } : null });
     }
+    lastWatched(out, acts);
     const color = j.data.user && j.data.user.options ? j.data.user.options.profileColor : null;
     return { list: out.sort((a, b) => b.updatedAt - a.updatedAt), color };
+  }
+
+  // updatedAt = when you last watched / read the show (its newest list activity). AniList's own updatedAt also
+  // changes when you only edit a score or notes, which made re-rated shows say "watched today".
+  // A show with no activity among the newest 50 was last watched before the oldest of them.
+  // No activities at all (switched off in your AniList settings): AniList's times stay.
+  function lastWatched(list, acts) {
+    acts = (acts || []).filter(a => a && a.media && a.createdAt);
+    if (!acts.length) return;
+    const at = {};
+    for (const a of acts) if (!(a.media.id in at)) at[a.media.id] = a.createdAt;
+    const oldest = Math.min(...acts.map(a => a.createdAt));
+    for (const it of list) it.updatedAt = at[it.id] != null ? at[it.id] : Math.min(it.updatedAt, oldest - 1);
   }
 
   function toB64(buf) {
