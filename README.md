@@ -25,9 +25,8 @@ It's **free**, needs **no coding**, and takes about **20 minutes**, once. You on
 > **Keeps updating even when AniList's API is down.** [How?](#when-anilists-api-is-down)
 
 > [!IMPORTANT]
-> **Set up before 23 Oct 2026? Update once.** Fixes re-rated shows showing as "watched today", and keeps the card updating when AniList's API is down.
-> 1. Click the [install link](../../raw/main/userscript/watchreading.user.js) → **Update** in Tampermonkey.
-> 2. Using the GitHub job (step 4)? Its program is the file `sync/sync.mjs` in **your** copy. Copy the [new one](../../raw/main/sync/sync.mjs), then in your copy open `sync` → `sync.mjs` → ✏️ → paste over everything → **Commit changes**.
+> **Set up before 23 Oct 2026? Update once** (about 3 minutes) → **[How to update](#updating-if-you-set-it-up-earlier)**.
+> It fixes re-rated shows showing as "watched today", and keeps the card updating when AniList's API is down.
 
 ---
 
@@ -196,7 +195,28 @@ To combine options, join them with `&`, for example:
 
 - Works while AniList is open on your computer. Phone changes wait until then.
 - The GitHub job waits and catches up when the API is back.
-- Installed before 22 Oct 2026? Click the [install link](../../raw/main/userscript/watchreading.user.js) again → **Update**.
+- Set up before 23 Oct 2026? [Update once](#updating-if-you-set-it-up-earlier).
+
+---
+
+## Updating (if you set it up earlier)
+
+Your card itself (`worker.js` in Cloudflare) doesn't need anything. Only these two:
+
+**1. The Tampermonkey script** (1 minute)
+
+1. Click this link: **[Update the watchreading script](../../raw/main/userscript/watchreading.user.js)**.
+2. Tampermonkey opens a page about the script. Click **Update** (or **Reinstall**).
+3. Check: Tampermonkey icon → **Dashboard**. watchreading shows version **1.2.0**. Your settings are kept.
+
+**2. The GitHub job** (only if you did step 4, 2 minutes)
+
+The job runs a small program, `sync/sync.mjs`, that sits in **your** copy. Replace it with the new one:
+
+1. Open the **[new sync.mjs](../../raw/main/sync/sync.mjs)**, press **Ctrl+A** and **Ctrl+C** to copy all of it.
+2. Go to **your** copy on GitHub (the project you made in step 4), open the folder **`sync`** → **`sync.mjs`**, and click the ✏️ pencil (top right).
+3. Click in the text, press **Ctrl+A** and **Ctrl+V**, then click **Commit changes** (twice).
+4. Check: **Actions** → **watchreading sync** → **Run workflow**. A green ✔ means it works.
 
 ---
 
