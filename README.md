@@ -27,7 +27,7 @@ It's **free**, needs **no coding**, and takes about **20 minutes**, once. You on
 > [!IMPORTANT]
 > **Set up before 23 Oct 2026? Update once.** Fixes re-rated shows showing as "watched today", and keeps the card updating when AniList's API is down.
 > 1. Click the [install link](../../raw/main/userscript/watchreading.user.js) → **Update** in Tampermonkey.
-> 2. Using the GitHub job? Copy the [new sync.mjs](../../raw/main/sync/sync.mjs), then in your copy open `sync/sync.mjs` → ✏️ → paste over everything → **Commit changes**.
+> 2. Using the GitHub job (step 4)? Its program is the file `sync/sync.mjs` in **your** copy. Copy the [new one](../../raw/main/sync/sync.mjs), then in your copy open `sync` → `sync.mjs` → ✏️ → paste over everything → **Commit changes**.
 
 ---
 
